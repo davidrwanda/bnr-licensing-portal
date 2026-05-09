@@ -1,0 +1,81 @@
+version: "3.9"
+
+# BNR Bank Licensing & Compliance Portal
+# Author: David NTAMAKEMWA
+#
+# Start everything: docker compose up --build
+# Stop everything:  docker compose down
+# Wipe DB data:     docker compose down -v
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: bnr_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bnr_portal
+      POSTGRES_USER: bnr_user
+      POSTGRES_PASSWORD: bnr_password
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bnr_user -d bnr_portal"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Spring Boot API ───────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./bnr-backend
+      dockerfile: Dockerfile
+    container_name: bnr_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/bnr_portal
+      DB_USERNAME: bnr_user
+      DB_PASSWORD: bnr_password
+      JWT_SECRET: bnr-portal-jwt-secret-key-change-in-production-32chars
+      JWT_REFRESH_SECRET: bnr-portal-refresh-secret-key-change-in-prod-32c
+      JWT_EXPIRY_MS: 900000
+      JWT_REFRESH_EXPIRY_MS: 604800000
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE_BYTES: 5242880
+      SERVER_PORT: 8080
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api-docs || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # ── React SPA (nginx) ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./bnr-frontend
+      dockerfile: Dockerfile
+      args:
+        # The browser talks directly to the backend — use the host-mapped port
+        VITE_API_URL: http://localhost:8080
+    container_name: bnr_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+volumes:
+  db_data:
+  uploads_data:
