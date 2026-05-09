@@ -16,6 +16,7 @@ import {
 } from '../api/applications';
 import { getDocuments, uploadDocument, downloadUrl } from '../api/documents';
 import { getAuditLog } from '../api/audit';
+import { getReviewers, UserSummary } from '../api/users';
 import { Application, Document, AuditEntry } from '../types';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -36,6 +37,7 @@ export default function ApplicationDetailPage() {
   const [actionError, setActionError] = useState('');
   const [noteInput, setNoteInput] = useState('');
   const [reviewerIdInput, setReviewerIdInput] = useState('');
+  const [reviewers, setReviewers] = useState<UserSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -66,7 +68,12 @@ export default function ApplicationDetailPage() {
     }
   };
 
-  useEffect(() => { loadAll(); }, [id]);
+  useEffect(() => {
+    loadAll();
+    if (user?.role === 'ADMIN') {
+      getReviewers().then((r) => { if (r.success) setReviewers(r.data ?? []); });
+    }
+  }, [id]);
 
   const extractError = (e: unknown, fallback: string): string => {
     const err = e as {
@@ -258,15 +265,27 @@ export default function ApplicationDetailPage() {
 
               {isAdmin && app.status === 'SUBMITTED' && (
                 <div style={{ marginTop: 12 }}>
-                  <label style={styles.label}>Reviewer UUID</label>
-                  <input
-                    style={styles.input}
-                    value={reviewerIdInput}
-                    onChange={(e) => setReviewerIdInput(e.target.value)}
-                    placeholder="Reviewer user ID"
-                  />
+                  <label style={styles.label}>Select reviewer</label>
+                  {reviewers.length === 0 ? (
+                    <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>
+                      No active reviewers found
+                    </div>
+                  ) : (
+                    <select
+                      style={styles.input}
+                      value={reviewerIdInput}
+                      onChange={(e) => setReviewerIdInput(e.target.value)}
+                    >
+                      <option value="">— choose a reviewer —</option>
+                      {reviewers.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.fullName} ({r.email})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <button
-                    style={styles.primaryBtn}
+                    style={{ ...styles.primaryBtn, marginTop: 10 }}
                     onClick={() => act(() => assignReviewer(app.id, reviewerIdInput))}
                     disabled={busy || !reviewerIdInput}
                   >
