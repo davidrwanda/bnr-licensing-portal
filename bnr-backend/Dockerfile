@@ -1,27 +1,22 @@
 # Author: David NTAMAKEMWA
 # syntax=docker/dockerfile:1
 
-# ── Stage 1: download dependencies ───────────────────────────────────────────
-# Separate layer so Docker caches it. Only invalidated when pom.xml changes.
-FROM maven:3.9-eclipse-temurin-21-alpine AS deps
+# ── Stage 1: build ────────────────────────────────────────────────────────────
+FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /build
 
+# Copy pom.xml first and resolve all dependencies as a separate layer.
+# Docker caches this layer — it is only invalidated when pom.xml changes.
+# Source code changes do NOT invalidate the dependency download.
 COPY pom.xml .
+RUN mvn dependency:resolve dependency:resolve-plugins -q --batch-mode
 
-# Download all dependencies into the local repo inside the image.
-# This layer is cached by Docker as long as pom.xml does not change.
-RUN mvn dependency:go-offline -q --batch-mode
-
-# ── Stage 2: compile and package ─────────────────────────────────────────────
-# Only runs the full compiler — all JARs are already in /root/.m2 from stage 1.
-FROM deps AS builder
-
+# Now copy source and build. Maven finds all JARs already in /root/.m2.
 COPY src ./src
+RUN mvn package -DskipTests -q --batch-mode
 
-RUN mvn package -DskipTests -o --batch-mode -q
-
-# ── Stage 3: minimal runtime image ───────────────────────────────────────────
+# ── Stage 2: minimal runtime ──────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine
 
 LABEL maintainer="David NTAMAKEMWA"
