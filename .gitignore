@@ -1,0 +1,20 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files — never commit secrets
+.env
+.env.local
+*.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.suo
+
+# Build artefacts — each sub-project has its own .gitignore for the rest
+bnr-backend/target/
+bnr-frontend/dist/
+bnr-frontend/node_modules/
+bnr-backend/uploads/
