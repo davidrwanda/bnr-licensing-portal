@@ -94,6 +94,29 @@ class ApplicationStateMachineTest {
     }
 
     @Test
+    void resubmitted_to_info_requested_is_allowed() {
+        assertThatCode(() -> stateMachine.assertTransitionAllowed(
+                ApplicationStatus.RESUBMITTED, ApplicationStatus.INFO_REQUESTED))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void resubmitted_to_review_complete_is_allowed() {
+        assertThatCode(() -> stateMachine.assertTransitionAllowed(
+                ApplicationStatus.RESUBMITTED, ApplicationStatus.REVIEW_COMPLETE))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void assigned_reviewer_can_act_on_resubmitted() {
+        Application app = makeApp(applicant, ApplicationStatus.RESUBMITTED);
+        app.setReviewer(reviewer);
+        assertThatCode(() -> stateMachine.assertActorCanTransition(
+                app, reviewer, ApplicationStatus.INFO_REQUESTED))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
     void resubmitted_to_under_review_is_allowed() {
         assertThatCode(() -> stateMachine.assertTransitionAllowed(
                 ApplicationStatus.RESUBMITTED, ApplicationStatus.UNDER_REVIEW))

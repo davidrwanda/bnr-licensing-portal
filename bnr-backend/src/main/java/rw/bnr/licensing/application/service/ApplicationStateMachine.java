@@ -35,7 +35,8 @@ public class ApplicationStateMachine {
         ALLOWED_TRANSITIONS.put(ApplicationStatus.INFO_REQUESTED,
                 EnumSet.of(ApplicationStatus.RESUBMITTED, ApplicationStatus.WITHDRAWN));
         ALLOWED_TRANSITIONS.put(ApplicationStatus.RESUBMITTED,
-                EnumSet.of(ApplicationStatus.UNDER_REVIEW, ApplicationStatus.WITHDRAWN));
+                EnumSet.of(ApplicationStatus.UNDER_REVIEW, ApplicationStatus.INFO_REQUESTED,
+                        ApplicationStatus.REVIEW_COMPLETE, ApplicationStatus.WITHDRAWN));
         ALLOWED_TRANSITIONS.put(ApplicationStatus.REVIEW_COMPLETE,
                 EnumSet.of(ApplicationStatus.APPROVED, ApplicationStatus.REJECTED));
         // Terminal states — no outbound edges
@@ -70,6 +71,8 @@ public class ApplicationStateMachine {
                 requireRole(role, Role.REVIEWER, targetStatus);
                 requireAssignedReviewer(application, actor);
             }
+            // Reviewer can act directly on RESUBMITTED without admin re-assigning UNDER_REVIEW
+            // The caller must still pass assertTransitionAllowed() for the specific target.
             case RESUBMITTED -> {
                 requireRole(role, Role.APPLICANT, targetStatus);
                 requireOwnership(application, actor);

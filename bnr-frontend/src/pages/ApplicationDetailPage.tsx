@@ -294,7 +294,7 @@ export default function ApplicationDetailPage() {
                 </div>
               )}
 
-              {isAssignedReviewer && app.status === 'UNDER_REVIEW' && (
+              {isAssignedReviewer && (app.status === 'UNDER_REVIEW' || app.status === 'RESUBMITTED') && (
                 <div>
                   <label style={styles.label}>Notes</label>
                   <textarea
