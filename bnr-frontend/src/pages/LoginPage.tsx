@@ -78,7 +78,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={styles.footer}>Internal use only — National Bank of Rwanda</div>
+        <div style={styles.footer}>© {new Date().getFullYear()} National Bank of Rwanda</div>
       </div>
     </div>
   );
