@@ -1,17 +1,23 @@
-# --- Stage 1: build the fat JAR ---
-FROM eclipse-temurin:21-jdk-alpine AS builder
+# Author: David NTAMAKEMWA
+
+# ── Stage 1: dependency cache ─────────────────────────────────────────────────
+# Use the official Maven + JDK 21 image — no apk install needed.
+FROM maven:3.9-eclipse-temurin-21-alpine AS deps
 
 WORKDIR /build
 
+# Copy only the POM first so this layer is cached as long as dependencies
+# don't change. Source changes won't invalidate this layer.
 COPY pom.xml .
+RUN mvn dependency:go-offline -q
+
+# ── Stage 2: compile and package ─────────────────────────────────────────────
+FROM deps AS builder
+
 COPY src ./src
+RUN mvn package -DskipTests -q
 
-# Download dependencies first (cached layer), then package
-RUN apk add --no-cache maven && \
-    mvn dependency:go-offline -q && \
-    mvn package -DskipTests -q
-
-# --- Stage 2: minimal runtime image ---
+# ── Stage 3: minimal runtime image ───────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine
 
 LABEL maintainer="David NTAMAKEMWA"
@@ -19,12 +25,10 @@ LABEL maintainer="David NTAMAKEMWA"
 WORKDIR /app
 
 # Non-root user for security
-RUN addgroup -S bnr && adduser -S bnr -G bnr
+RUN addgroup -S bnr && adduser -S bnr -G bnr && \
+    mkdir -p /app/uploads && chown bnr:bnr /app/uploads
 
 COPY --from=builder /build/target/licensing-portal-*.jar app.jar
-
-# Directory for uploaded files — mounted as a volume in docker-compose
-RUN mkdir -p /app/uploads && chown bnr:bnr /app/uploads
 
 USER bnr
 

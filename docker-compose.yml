@@ -1,11 +1,10 @@
-version: "3.9"
-
 # BNR Bank Licensing & Compliance Portal
 # Author: David NTAMAKEMWA
 #
-# Start everything: docker compose up --build
-# Stop everything:  docker compose down
-# Wipe DB data:     docker compose down -v
+# First run:       docker compose up --build
+# Subsequent runs: docker compose up          (uses cached images — fast)
+# Stop:            docker compose down
+# Wipe DB data:    docker compose down -v
 
 services:
 
@@ -54,25 +53,26 @@ services:
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api-docs || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health 2>/dev/null | grep -q UP || wget -qO- http://localhost:8080/api-docs > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
 
   # ── React SPA (nginx) ─────────────────────────────────────────────────────
+  # nginx serves the pre-built static bundle — it starts instantly.
+  # The browser talks to the backend directly on :8080, so frontend does not
+  # need to wait for the backend to be healthy before it can serve HTML.
   frontend:
     build:
       context: ./bnr-frontend
       dockerfile: Dockerfile
       args:
-        # The browser talks directly to the backend — use the host-mapped port
         VITE_API_URL: http://localhost:8080
     container_name: bnr_frontend
     restart: unless-stopped
     depends_on:
-      backend:
-        condition: service_healthy
+      - db        # just ensures compose start order; no health gate needed
     ports:
       - "3000:80"
 
