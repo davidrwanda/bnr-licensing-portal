@@ -32,11 +32,6 @@ services:
     build:
       context: ./bnr-backend
       dockerfile: Dockerfile
-      # BuildKit is required for the --mount=type=cache directive in the Dockerfile.
-      # Docker Desktop enables BuildKit by default. If you see a cache miss, run:
-      #   DOCKER_BUILDKIT=1 docker compose up --build
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
     container_name: bnr_backend
     restart: unless-stopped
     depends_on:

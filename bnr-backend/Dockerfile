@@ -1,21 +1,27 @@
 # Author: David NTAMAKEMWA
 # syntax=docker/dockerfile:1
 
-# ── Stage 1: build the fat JAR ────────────────────────────────────────────────
-FROM maven:3.9-eclipse-temurin-21-alpine AS builder
+# ── Stage 1: download dependencies ───────────────────────────────────────────
+# Separate layer so Docker caches it. Only invalidated when pom.xml changes.
+FROM maven:3.9-eclipse-temurin-21-alpine AS deps
 
 WORKDIR /build
 
 COPY pom.xml .
+
+# Download all dependencies into the local repo inside the image.
+# This layer is cached by Docker as long as pom.xml does not change.
+RUN mvn dependency:go-offline -q --batch-mode
+
+# ── Stage 2: compile and package ─────────────────────────────────────────────
+# Only runs the full compiler — all JARs are already in /root/.m2 from stage 1.
+FROM deps AS builder
+
 COPY src ./src
 
-# --mount=type=cache persists the Maven local repository between builds on the
-# same machine. First build still downloads everything; every subsequent build
-# is a cache hit and takes ~20 s instead of ~3 min.
-RUN --mount=type=cache,target=/root/.m2,sharing=locked \
-    mvn package -DskipTests --no-transfer-progress -q
+RUN mvn package -DskipTests -o --batch-mode -q
 
-# ── Stage 2: minimal runtime image ───────────────────────────────────────────
+# ── Stage 3: minimal runtime image ───────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine
 
 LABEL maintainer="David NTAMAKEMWA"
