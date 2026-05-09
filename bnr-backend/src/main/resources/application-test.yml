@@ -1,0 +1,14 @@
+spring:
+  jpa:
+    show-sql: false
+
+app:
+  jwt:
+    secret: test-secret-key-that-is-at-least-32-characters-long
+    refresh-secret: test-refresh-secret-key-at-least-32-characters-long
+    expiry-ms: 3600000
+    refresh-expiry-ms: 86400000
+
+  upload:
+    dir: ./test-uploads
+    max-bytes: 5242880

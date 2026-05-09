@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: bnr-licensing-portal
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/bnr_portal}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 10MB
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-stacktrace: never
+    include-message: always
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:bnr-super-secret-jwt-key-that-is-at-least-32-characters}
+    refresh-secret: ${JWT_REFRESH_SECRET:bnr-super-secret-refresh-key-at-least-32-chars}
+    expiry-ms: ${JWT_EXPIRY_MS:900000}
+    refresh-expiry-ms: ${JWT_REFRESH_EXPIRY_MS:604800000}
+
+  upload:
+    dir: ${UPLOAD_DIR:./uploads}
+    max-bytes: ${MAX_FILE_SIZE_BYTES:5242880}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
