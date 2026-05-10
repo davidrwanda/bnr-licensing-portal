@@ -60,6 +60,7 @@ export interface Document {
 
 export interface AuditEntry {
   id: number;
+  applicationId: string | null;
   actorEmail: string;
   action: string;
   previousStatus: string | null;

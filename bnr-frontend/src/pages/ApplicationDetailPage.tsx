@@ -1,7 +1,7 @@
 // @author David NTAMAKEMWA
 
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   getApplication,
   updateApplication,
@@ -29,6 +29,7 @@ const BNR_GOLD = '#C8972A';
 export default function ApplicationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [app, setApp] = useState<Application | null>(null);
   const [docs, setDocs] = useState<Document[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
@@ -142,6 +143,10 @@ export default function ApplicationDetailPage() {
 
   return (
     <div>
+      <button style={styles.backBtn} onClick={() => navigate(-1)}>
+        ← Back
+      </button>
+
       <div style={styles.topRow}>
         <div>
           <h1 style={styles.heading}>{app.institutionName}</h1>
@@ -149,6 +154,32 @@ export default function ApplicationDetailPage() {
         </div>
         <StatusBadge status={app.status} />
       </div>
+
+      {/* Rejection banner — prominent for applicants */}
+      {app.status === 'REJECTED' && app.decisionReason && (
+        <div style={styles.rejectionBanner}>
+          <div style={styles.rejectionTitle}>Application Rejected</div>
+          <div style={styles.rejectionReason}>{app.decisionReason}</div>
+          {app.decidedAt && (
+            <div style={styles.rejectionDate}>
+              Decision date: {new Date(app.decidedAt).toLocaleString()}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Approval banner */}
+      {app.status === 'APPROVED' && (
+        <div style={styles.approvalBanner}>
+          <div style={styles.approvalTitle}>Application Approved</div>
+          {app.decisionReason && <div>{app.decisionReason}</div>}
+          {app.decidedAt && (
+            <div style={{ marginTop: 4, fontSize: 13 }}>
+              Decision date: {new Date(app.decidedAt).toLocaleString()}
+            </div>
+          )}
+        </div>
+      )}
 
       {actionError && <ErrorAlert message={actionError} />}
 
@@ -425,7 +456,38 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  backBtn: {
+    background: 'transparent',
+    border: 'none',
+    color: '#666',
+    fontSize: 14,
+    cursor: 'pointer',
+    padding: '0 0 16px',
+    fontWeight: 600,
+  },
   topRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
+  rejectionBanner: {
+    background: '#f8d7da',
+    border: '1px solid #f5c2c7',
+    borderRadius: 8,
+    padding: '16px 20px',
+    marginBottom: 20,
+    color: '#842029',
+  },
+  rejectionTitle: { fontWeight: 700, fontSize: 16, marginBottom: 6 },
+  rejectionReason: { fontSize: 14, lineHeight: 1.5 },
+  rejectionDate: { fontSize: 12, marginTop: 8, opacity: 0.8 },
+  approvalBanner: {
+    background: '#d4edda',
+    border: '1px solid #c3e6cb',
+    borderRadius: 8,
+    padding: '16px 20px',
+    marginBottom: 20,
+    color: '#155724',
+    fontWeight: 600,
+    fontSize: 15,
+  },
+  approvalTitle: { fontWeight: 700, fontSize: 16, marginBottom: 6 },
   heading: { margin: 0, fontSize: 24, color: BNR_DARK },
   meta: { fontSize: 14, color: '#666', marginTop: 4 },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' },

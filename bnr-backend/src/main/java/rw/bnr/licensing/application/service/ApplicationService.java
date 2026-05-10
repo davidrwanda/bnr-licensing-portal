@@ -54,12 +54,7 @@ public class ApplicationService {
         User actor = loadUser(actorId);
         List<Application> results = switch (role) {
             case APPLICANT -> applicationRepository.findByApplicant(actor);
-            case REVIEWER -> applicationRepository.findByStatusIn(List.of(
-                    ApplicationStatus.SUBMITTED,
-                    ApplicationStatus.UNDER_REVIEW,
-                    ApplicationStatus.INFO_REQUESTED,
-                    ApplicationStatus.RESUBMITTED,
-                    ApplicationStatus.REVIEW_COMPLETE));
+            case REVIEWER -> applicationRepository.findByReviewer(actor);
             case APPROVER -> applicationRepository.findByStatus(ApplicationStatus.REVIEW_COMPLETE);
             case ADMIN -> applicationRepository.findAll();
         };
@@ -236,7 +231,10 @@ public class ApplicationService {
 
     private void assertCanView(Application app, UUID actorId, Role role) {
         boolean allowed = switch (role) {
-            case ADMIN, REVIEWER, APPROVER -> true;
+            case ADMIN -> true;
+            case APPROVER -> true;
+            // Reviewer can only view applications assigned to them
+            case REVIEWER -> app.getReviewer() != null && app.getReviewer().getId().equals(actorId);
             case APPLICANT -> app.getApplicant().getId().equals(actorId);
         };
         if (!allowed) {

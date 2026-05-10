@@ -53,6 +53,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {user?.role === 'ADMIN' && (
             <>
               <Link to="/dashboard" style={styles.navLink}>All Applications</Link>
+              <Link to="/admin/users" style={styles.navLink}>Users</Link>
               <Link to="/admin/audit" style={styles.navLink}>Audit Log</Link>
             </>
           )}

@@ -8,10 +8,13 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import NewApplicationPage from './pages/applicant/NewApplicationPage';
 import ApplicationDetailPage from './pages/ApplicationDetailPage';
+import AuditLogPage from './pages/admin/AuditLogPage';
+import UsersPage from './pages/admin/UsersPage';
 
-function PrivateRoute({ children }: { children: React.ReactNode }) {
+function PrivateRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (allowedRoles && !allowedRoles.includes(user.role)) return <Navigate to="/dashboard" replace />;
   return <Shell>{children}</Shell>;
 }
 
@@ -26,38 +29,30 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route
-            path="/login"
-            element={
-              <PublicOnlyRoute>
-                <LoginPage />
-              </PublicOnlyRoute>
-            }
-          />
-          <Route
-            path="/dashboard"
-            element={
-              <PrivateRoute>
-                <DashboardPage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/apply"
-            element={
-              <PrivateRoute>
-                <NewApplicationPage />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/applications/:id"
-            element={
-              <PrivateRoute>
-                <ApplicationDetailPage />
-              </PrivateRoute>
-            }
-          />
+          <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+
+          <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+
+          <Route path="/apply" element={
+            <PrivateRoute allowedRoles={['APPLICANT']}>
+              <NewApplicationPage />
+            </PrivateRoute>
+          } />
+
+          <Route path="/applications/:id" element={<PrivateRoute><ApplicationDetailPage /></PrivateRoute>} />
+
+          <Route path="/admin/audit" element={
+            <PrivateRoute allowedRoles={['ADMIN']}>
+              <AuditLogPage />
+            </PrivateRoute>
+          } />
+
+          <Route path="/admin/users" element={
+            <PrivateRoute allowedRoles={['ADMIN']}>
+              <UsersPage />
+            </PrivateRoute>
+          } />
+
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

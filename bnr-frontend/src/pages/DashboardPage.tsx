@@ -3,12 +3,32 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getApplications } from '../api/applications';
-import { Application } from '../types';
+import { Application, ApplicationStatus, Role } from '../types';
 import { useAuth } from '../context/AuthContext';
 import StatusBadge from '../components/ui/StatusBadge';
 import Spinner from '../components/ui/Spinner';
 import ErrorAlert from '../components/ui/ErrorAlert';
 import EmptyState from '../components/ui/EmptyState';
+
+const BNR_DARK = '#5C1B1B';
+const BNR_GOLD = '#C8972A';
+
+// Returns true when this application needs the current user to act
+function needsAction(status: ApplicationStatus, role: Role, userId: string, app: Application): boolean {
+  switch (role) {
+    case 'APPLICANT':
+      return status === 'DRAFT' || status === 'INFO_REQUESTED';
+    case 'REVIEWER':
+      return (status === 'UNDER_REVIEW' || status === 'RESUBMITTED') &&
+             app.reviewer?.id === userId;
+    case 'APPROVER':
+      return status === 'REVIEW_COMPLETE' && app.reviewer?.id !== userId;
+    case 'ADMIN':
+      return status === 'SUBMITTED';
+    default:
+      return false;
+  }
+}
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -30,11 +50,10 @@ export default function DashboardPage() {
   }, []);
 
   const title =
-    user?.role === 'APPLICANT'
-      ? 'My Applications'
-      : user?.role === 'APPROVER'
-      ? 'Applications Awaiting Decision'
-      : 'Applications';
+    user?.role === 'APPLICANT' ? 'My Applications' :
+    user?.role === 'APPROVER'  ? 'Applications Awaiting Decision' :
+    user?.role === 'REVIEWER'  ? 'My Assigned Applications' :
+    'All Applications';
 
   if (loading) return <Spinner />;
 
@@ -43,15 +62,13 @@ export default function DashboardPage() {
       <div style={styles.topRow}>
         <h1 style={styles.heading}>{title}</h1>
         {user?.role === 'APPLICANT' && (
-          <Link to="/apply" style={styles.newBtn}>
-            + New Application
-          </Link>
+          <Link to="/apply" style={styles.newBtn}>+ New Application</Link>
         )}
       </div>
 
       {error && <ErrorAlert message={error} />}
 
-      {!loading && applications.length === 0 ? (
+      {applications.length === 0 ? (
         <EmptyState
           title="No applications yet"
           description={
@@ -61,9 +78,7 @@ export default function DashboardPage() {
           }
           action={
             user?.role === 'APPLICANT' ? (
-              <Link to="/apply" style={styles.newBtn}>
-                New Application
-              </Link>
+              <Link to="/apply" style={styles.newBtn}>New Application</Link>
             ) : undefined
           }
         />
@@ -79,25 +94,33 @@ export default function DashboardPage() {
             </tr>
           </thead>
           <tbody>
-            {applications.map((app) => (
-              <tr key={app.id} style={styles.tr}>
-                <td style={styles.td}>{app.institutionName}</td>
-                <td style={styles.td}>{app.institutionType}</td>
-                <td style={styles.td}>
-                  <StatusBadge status={app.status} />
-                </td>
-                <td style={styles.td}>
-                  {app.submittedAt
-                    ? new Date(app.submittedAt).toLocaleDateString()
-                    : '—'}
-                </td>
-                <td style={styles.td}>
-                  <Link to={`/applications/${app.id}`} style={styles.viewLink}>
-                    View
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {applications.map((app) => {
+              const actionNeeded = user
+                ? needsAction(app.status, user.role as Role, user.userId, app)
+                : false;
+              return (
+                <tr key={app.id} style={{ ...styles.tr, background: actionNeeded ? '#fffbf0' : '#fff' }}>
+                  <td style={styles.td}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {app.institutionName}
+                      {actionNeeded && (
+                        <span style={styles.actionDot} title="Your action is needed">●</span>
+                      )}
+                    </div>
+                  </td>
+                  <td style={styles.td}>{app.institutionType}</td>
+                  <td style={styles.td}><StatusBadge status={app.status} /></td>
+                  <td style={styles.td}>
+                    {app.submittedAt ? new Date(app.submittedAt).toLocaleDateString() : '—'}
+                  </td>
+                  <td style={styles.td}>
+                    <Link to={`/applications/${app.id}`} style={styles.viewLink}>
+                      {actionNeeded ? 'Act now →' : 'View'}
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -105,49 +128,23 @@ export default function DashboardPage() {
   );
 }
 
-const BNR_DARK = '#5C1B1B';
-const BNR_GOLD = '#C8972A';
-
 const styles: Record<string, React.CSSProperties> = {
-  topRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
+  topRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   heading: { margin: 0, fontSize: 24, color: BNR_DARK },
   newBtn: {
-    background: BNR_DARK,
-    color: '#fff',
-    textDecoration: 'none',
-    padding: '8px 18px',
-    borderRadius: 5,
-    fontWeight: 600,
-    fontSize: 14,
+    background: BNR_DARK, color: '#fff', textDecoration: 'none',
+    padding: '8px 18px', borderRadius: 5, fontWeight: 600, fontSize: 14,
   },
   table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-    background: '#fff',
-    borderRadius: 8,
-    boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
-    overflow: 'hidden',
+    width: '100%', borderCollapse: 'collapse', borderRadius: 8,
+    boxShadow: '0 1px 4px rgba(0,0,0,0.07)', overflow: 'hidden',
   },
   th: {
-    textAlign: 'left',
-    padding: '12px 16px',
-    background: '#f8f8f8',
-    borderBottom: '2px solid #eee',
-    fontSize: 13,
-    fontWeight: 700,
-    color: '#444',
+    textAlign: 'left', padding: '12px 16px', background: '#f8f8f8',
+    borderBottom: '2px solid #eee', fontSize: 13, fontWeight: 700, color: '#444',
   },
   tr: { borderBottom: '1px solid #f0f0f0' },
   td: { padding: '12px 16px', fontSize: 14, color: '#333' },
-  viewLink: {
-    color: BNR_GOLD,
-    fontWeight: 600,
-    textDecoration: 'none',
-    fontSize: 13,
-  },
+  viewLink: { color: BNR_GOLD, fontWeight: 600, textDecoration: 'none', fontSize: 13 },
+  actionDot: { color: BNR_GOLD, fontSize: 10 },
 };
