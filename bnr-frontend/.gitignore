@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+# Vite scaffold files — not used in this project
+src/App.css
+src/assets/
+public/vite.svg
