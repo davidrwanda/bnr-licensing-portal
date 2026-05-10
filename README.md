@@ -58,14 +58,9 @@ Two applications are also seeded so you can see the workflow in action without c
 ```bash
 cd bnr-backend
 
-# Fast unit tests, no database needed
-./mvnw test -Dgroups=unit
-
-# Integration tests including the concurrency test (needs Docker for Testcontainers)
-./mvnw test -Dgroups=integration
-
-# Everything
-./mvnw test
+./mvnw test -Dgroups=unit          # fast, no database needed
+./mvnw test -Dgroups=integration   # needs Docker (Testcontainers)
+./mvnw test                        # everything
 ```
 
 The concurrency test is worth running if you want to see the optimistic locking in action — it fires two simultaneous approval requests at the same application and asserts that exactly one succeeds and the other gets a 409.
@@ -135,21 +130,19 @@ bnr-licensing-portal/
 
 ---
 
-## How it works
-
-**Three-tier, no surprises:**
+## Architecture
 
 ```
 Browser (React SPA)
       |
       | HTTP/REST
       |
-Spring Boot API  ←  enforces auth, roles, state machine
+Spring Boot API  ←  auth, role checks, state machine
       |
 PostgreSQL  ←  ACID, optimistic locking, append-only audit grants
 ```
 
-I went with a structured monolith rather than microservices. At the scale of one regulatory body processing licensing applications, splitting into services would add distributed systems overhead without adding anything useful. The module boundaries are clean enough that extraction is possible later if it becomes necessary.
+Standard three-tier. I chose a monolith over microservices — at the scale of one regulatory body processing licensing applications, splitting into services would add distributed-systems overhead without adding anything useful. The internal package boundaries (auth, application, document, audit) are clean enough that extraction would be straightforward later if load ever demanded it.
 
 ---
 
@@ -184,17 +177,17 @@ Illegal transitions return 422. Once something is approved, rejected or withdraw
 
 ---
 
-## Design decisions worth noting
+## Some decisions I made and why
 
-**JWT, not sessions.** Stateless backend, nothing to manage server-side. Access tokens expire after 15 minutes; refresh tokens are stored in the database and revoked immediately on logout.
+**Auth:** JWT with short-lived access tokens (15 min) and a refresh token stored in the database. Logout revokes the refresh token immediately. I went with JWT over sessions because there is no session store to manage — the backend stays stateless.
 
-**Separation of duties is enforced three ways.** The state machine rejects the transition in the service layer. The database has a CHECK constraint. The UI hides the button. All three would have to fail for the rule to be broken.
+**Separation of duties:** The rule that the reviewer cannot also approve is enforced in three independent places: the service layer, a database CHECK constraint, and the UI. The idea is that if one layer has a bug, the others still hold.
 
-**Audit log is append-only by design.** The application database user is granted INSERT on `audit_logs` and nothing else — no UPDATE, no DELETE. This is done at the PostgreSQL privilege level in the V2 migration, not just in application code. A gap in the BIGSERIAL sequence means a deletion happened.
+**Audit trail:** The application database user has INSERT on `audit_logs` and nothing else. No UPDATE, no DELETE — enforced in the V2 Flyway migration at the PostgreSQL grant level, not just by convention in application code. The table uses BIGSERIAL as the primary key, so a gap in the sequence is evidence that a row was deleted.
 
-**Concurrency handled with optimistic locking.** Every applications row has a `@Version` column. If two users try to act on the same application at the same moment, the second writer sees `rows_affected = 0` and gets a 409. I chose optimistic over pessimistic locking because holding a row lock while a user thinks about their decision would block everyone else from touching that application indefinitely.
+**Concurrency:** Every row in the applications table has a `@Version` column. If two users try to act on the same application at the same time, whoever saves second sees `rows_affected = 0` and gets a 409. I chose optimistic locking over pessimistic because with pessimistic locking, holding a row lock while a user reads an application and thinks about what to do would block everyone else from touching it for an unpredictable amount of time.
 
-**Documents are versioned, never deleted.** When an applicant resubmits after being asked for more information, the previous documents are marked superseded and the new ones get an incremented version number. Reviewers can always look back at what was submitted in earlier rounds.
+**Document versioning:** When an applicant resubmits after an information request, the previous documents are marked superseded and new ones are saved with an incremented version number. Nothing is ever deleted. Reviewers can always look back at what was originally submitted.
 
 ---
 
@@ -250,16 +243,14 @@ Interactive docs at `http://localhost:8080/swagger-ui.html`.
 
 ---
 
-## What I didn't build and why
+## What's missing and why I left it out
 
-These were deliberate calls, not oversights:
+**Cryptographic hash chain on the audit log.** The INSERT-only grant stops tampering through the application layer. It does not stop a database administrator with superuser access. A production system would add a hash chain over log entries and ship them periodically to a notarised external store. I scoped that out of v1 because it requires additional infrastructure decisions that are better made with the operations team.
 
-**No cryptographic hash chain on the audit log.** The current approach (INSERT-only DB grants, BIGSERIAL gap detection) stops tampering through the application layer. It does not stop a compromised DBA. A production deployment would add a hash chain over log entries and periodic export to a notarised external store. That felt out of scope for v1.
+**Immediate token revocation.** If an access token is stolen it goes stale in 15 minutes on its own. Revoking it instantly across all sessions would need a Redis blacklist. That's a reasonable addition but I didn't want to pull in another infrastructure dependency without a concrete requirement for it.
 
-**No immediate JWT revocation.** If a token is stolen, it expires in 15 minutes on its own. True immediate revocation across all devices would need a Redis blacklist — another infrastructure dependency I didn't want to introduce without a clear requirement.
+**Email or SMS notifications.** Nothing is sent when an application changes state. You'd need a message queue (RabbitMQ or similar) behind the backend and a notification panel in the UI. Intentionally deferred.
 
-**No email notifications.** State changes don't send emails. The foundation for it would be a message queue on the backend; the UI would need a notification panel. Left for v2.
+**2FA.** I'd want this for Reviewer, Approver and Admin roles before putting this in front of real users.
 
-**No 2FA.** Would strongly recommend it for the Reviewer, Approver and Admin roles before going to production.
-
-**No appeal flow.** A rejected application requires a brand new submission. Building an appeal state into the same machine is doable but would need product input on how it should behave — I didn't want to guess.
+**Appeals.** A rejected application currently requires starting fresh with a new submission. An appeal flow would need its own states and its own rules around who can see what — I didn't want to design that without input on how it should actually work.
