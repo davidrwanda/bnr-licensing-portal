@@ -36,7 +36,6 @@ public class AuthService {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
 
-        // Revoke any existing refresh tokens before issuing a new one
         refreshTokenRepository.revokeAllByUser(user);
 
         String accessToken = jwtService.generateAccessToken(user);

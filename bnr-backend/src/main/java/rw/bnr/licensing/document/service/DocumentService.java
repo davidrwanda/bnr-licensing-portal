@@ -42,13 +42,11 @@ public class DocumentService {
 
     @Transactional
     public DocumentResponse upload(UUID applicationId, UUID actorId, Role actorRole, MultipartFile file) throws IOException {
-        // File size enforced server-side before anything is written to disk
         if (file.isEmpty()) {
             throw new InvalidTransitionException("Uploaded file must not be empty");
         }
         if (file.getSize() > maxBytes) {
-            throw new InvalidTransitionException(
-                    "File exceeds the maximum allowed size of 5 MB");
+            throw new InvalidTransitionException("File exceeds the maximum allowed size of 5 MB");
         }
 
         Application app = loadApplication(applicationId);
@@ -56,7 +54,6 @@ public class DocumentService {
 
         assertCanUpload(app, actor, actorRole);
 
-        // On resubmission, mark previous version set as superseded before storing the new one
         boolean superseding = app.getStatus() == ApplicationStatus.RESUBMITTED
                 || app.getStatus() == ApplicationStatus.INFO_REQUESTED;
         if (superseding) {
@@ -118,7 +115,6 @@ public class DocumentService {
     public DocumentResponse getDocumentForDownload(UUID documentId, UUID actorId, Role actorRole) {
         Document doc = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found: " + documentId));
-
         assertCanView(doc.getApplication(), actorId, actorRole);
         return DocumentResponse.from(doc);
     }
@@ -127,7 +123,6 @@ public class DocumentService {
     public Path getFilePath(UUID documentId, UUID actorId, Role actorRole) {
         Document doc = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found: " + documentId));
-
         assertCanView(doc.getApplication(), actorId, actorRole);
         return Paths.get(doc.getStoragePath());
     }
@@ -139,7 +134,7 @@ public class DocumentService {
                     throw new ForbiddenException("You can only upload to your own applications");
                 }
             }
-            case ADMIN, REVIEWER -> { /* admin and assigned reviewers can upload supporting docs */ }
+            case ADMIN, REVIEWER -> {}
             case APPROVER -> throw new ForbiddenException("Approvers cannot upload documents");
         }
     }
@@ -164,7 +159,7 @@ public class DocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + id));
     }
 
-    // Strip path traversal characters from the original filename before using it in storage path
+    // replaces anything that isn't a safe filename character to avoid path traversal
     private String sanitizeFilename(String name) {
         if (name == null) return "file";
         return name.replaceAll("[^a-zA-Z0-9._\\-]", "_");

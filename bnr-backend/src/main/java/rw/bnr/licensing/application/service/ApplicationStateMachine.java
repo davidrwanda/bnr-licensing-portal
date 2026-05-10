@@ -71,15 +71,12 @@ public class ApplicationStateMachine {
                 requireRole(role, Role.REVIEWER, targetStatus);
                 requireAssignedReviewer(application, actor);
             }
-            // Reviewer can act directly on RESUBMITTED without admin re-assigning UNDER_REVIEW
-            // The caller must still pass assertTransitionAllowed() for the specific target.
             case RESUBMITTED -> {
                 requireRole(role, Role.APPLICANT, targetStatus);
                 requireOwnership(application, actor);
             }
             case APPROVED, REJECTED -> {
                 requireRole(role, Role.APPROVER, targetStatus);
-                // Separation of duties: the reviewer cannot also be the approver
                 assertNotSamePersonAsReviewer(application, actor);
             }
             default -> throw new InvalidTransitionException("Unrecognised target status: " + targetStatus);
