@@ -2,6 +2,7 @@ package rw.bnr.licensing.concurrency;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -31,12 +32,24 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Demonstrates that optimistic locking prevents two concurrent decisions on
  * the same application from both succeeding. Runs against a real PostgreSQL
  * instance via Testcontainers — mocks cannot give meaningful concurrency guarantees.
+ *
+ * Skipped automatically when Docker is not running.
  */
 @Tag("integration")
 @SpringBootTest
 @ActiveProfiles("test")
 @Testcontainers
+@EnabledIf("isDockerAvailable")
 class ConcurrentApprovalTest {
+
+    static boolean isDockerAvailable() {
+        try {
+            org.testcontainers.DockerClientFactory.instance().client();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
@@ -57,7 +70,6 @@ class ConcurrentApprovalTest {
 
     @Test
     void only_one_of_two_concurrent_decisions_should_succeed() throws InterruptedException {
-        // Set up: one application in REVIEW_COMPLETE state, two approvers
         User applicant = userRepository.save(
                 new User("c-applicant@test.rw", "$2a$12$hash", "Concurrent Applicant", Role.APPLICANT));
         User reviewer = userRepository.save(
@@ -76,7 +88,6 @@ class ConcurrentApprovalTest {
         Application saved = applicationRepository.save(app);
         UUID appId = saved.getId();
 
-        // Fire two concurrent approve requests
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CyclicBarrier barrier = new CyclicBarrier(2);
         AtomicInteger successes = new AtomicInteger(0);
@@ -85,7 +96,7 @@ class ConcurrentApprovalTest {
 
         for (UUID approverId : List.of(approver1.getId(), approver2.getId())) {
             futures.add(pool.submit(() -> {
-                barrier.await(); // both threads start simultaneously
+                barrier.await();
                 try {
                     applicationService.approve(appId, approverId,
                             new DecisionRequest("Concurrent approval attempt"));
@@ -100,18 +111,13 @@ class ConcurrentApprovalTest {
         for (Future<Void> f : futures) {
             try { f.get(10, TimeUnit.SECONDS); }
             catch (ExecutionException | TimeoutException e) {
-                // CyclicBarrier BrokenBarrierException surfaces here — treat as conflict
                 conflicts.incrementAndGet();
             }
         }
 
         pool.shutdown();
 
-        assertThat(successes.get())
-                .as("Exactly one approval should succeed")
-                .isEqualTo(1);
-        assertThat(conflicts.get())
-                .as("Exactly one request should be rejected with a conflict")
-                .isEqualTo(1);
+        assertThat(successes.get()).as("Exactly one approval should succeed").isEqualTo(1);
+        assertThat(conflicts.get()).as("Exactly one request should be rejected with a conflict").isEqualTo(1);
     }
 }
