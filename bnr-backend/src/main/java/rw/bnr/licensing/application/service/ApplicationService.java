@@ -56,7 +56,8 @@ public class ApplicationService {
             case APPLICANT -> applicationRepository.findByApplicant(actor);
             case REVIEWER -> applicationRepository.findByReviewer(actor);
             case APPROVER -> applicationRepository.findByStatus(ApplicationStatus.REVIEW_COMPLETE);
-            case ADMIN -> applicationRepository.findAll();
+            // Admins see everything except drafts — drafts are the applicant's private workspace
+            case ADMIN -> applicationRepository.findByStatusNot(ApplicationStatus.DRAFT);
         };
         return results.stream().map(ApplicationResponse::from).toList();
     }
@@ -230,6 +231,15 @@ public class ApplicationService {
     }
 
     private void assertCanView(Application app, UUID actorId, Role role) {
+        // DRAFT is only visible to the applicant who owns it — no one else
+        if (app.getStatus() == ApplicationStatus.DRAFT) {
+            boolean isOwner = role == Role.APPLICANT && app.getApplicant().getId().equals(actorId);
+            if (!isOwner) {
+                throw new ForbiddenException("You do not have access to this application");
+            }
+            return;
+        }
+
         boolean allowed = switch (role) {
             case ADMIN -> true;
             case APPROVER -> true;

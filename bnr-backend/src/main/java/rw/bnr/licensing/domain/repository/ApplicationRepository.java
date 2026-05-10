@@ -24,6 +24,8 @@ public interface ApplicationRepository extends JpaRepository<Application, UUID> 
 
     List<Application> findByStatus(ApplicationStatus status);
 
+    List<Application> findByStatusNot(ApplicationStatus status);
+
     @Query("SELECT a FROM Application a WHERE a.status IN :statuses ORDER BY a.createdAt DESC")
     List<Application> findByStatusIn(@Param("statuses") List<ApplicationStatus> statuses);
 
