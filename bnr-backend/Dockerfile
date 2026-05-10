@@ -7,6 +7,8 @@ FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 WORKDIR /build
 COPY pom.xml .
 RUN mvn dependency:resolve dependency:resolve-plugins -q --batch-mode
+
+COPY src ./src
 RUN mvn package -DskipTests -q --batch-mode
 
 # ── Stage 2: minimal runtime ──────────────────────────────────────────────────
